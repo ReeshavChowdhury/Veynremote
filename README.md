@@ -15,6 +15,8 @@ Linux auto-lock after disconnect, settings, and tests.
 See [upstream attribution](UPSTREAM.md). The original [AGPL-3.0 license](LICENSE)
 is retained.
 
+**[Project website and setup guide](https://reeshavchowdhury.github.io/veynremote/)** · [Reeshav’s project portfolio](https://reeshavchowdhury.github.io/)
+
 ## What this version adds
 
 - **Black screen on Ubuntu, normal desktop on Windows.** Display gamma ramps
