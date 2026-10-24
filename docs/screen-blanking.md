@@ -44,7 +44,7 @@ the README instructions. Live X11 tests now confirm that active display gamma ra
 restored exactly after disconnect and heartbeat timeout. Run the opt-in native
 tests with `VEYNDESK_TEST_X11_BLANKING=1 python3 -m unittest discover -s crates/host/tests -v`;
 these briefly blank the current display. Physical-monitor observation and a
-Windows-to-Ubuntu session test remain necessary. The desktop release build and all 11 workspace tests passed. The live
+Windows-to-Ubuntu session test remain necessary for each new setup. The desktop release build and all workspace tests passed. The live
 `privacy_capture_check` example confirmed that the actual Xcap source continues
 receiving a colored 1920×1080 desktop while blanking is active. The repository
 owner also confirmed that the Windows-to-Ubuntu setup worked. These checks cover

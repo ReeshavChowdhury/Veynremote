@@ -21,6 +21,11 @@ pub struct HostConfig {
     /// Experimental X11 gamma blanking while authenticated viewers are connected.
     #[serde(default)]
     pub blank_screen_on_connect: bool,
+    /// Lock this Linux desktop when its last authenticated viewer disconnects.
+    #[serde(default)]
+    pub lock_after_disconnect: bool,
+    #[serde(default)]
+    pub two_factor: Option<crate::security::TwoFactorConfig>,
     /// Desktop app: also run a Veyndesk server on this PC (LAN mode).
     #[serde(default)]
     pub run_server: bool,
@@ -92,6 +97,8 @@ impl HostConfig {
             permanent: None,
             ask_to_accept: true,
             blank_screen_on_connect: false,
+            lock_after_disconnect: false,
+            two_factor: None,
             run_server: false,
             internet: false,
             team_code: None,
@@ -103,7 +110,13 @@ impl HostConfig {
         if let Some(dir) = p.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        std::fs::write(p, serde_json::to_string_pretty(self)?)?;
+        // Atomic replacement prevents partial writes and restricts secret access
+        // to the owner on Unix (NamedTempFile is created with mode 0600).
+        use std::io::Write;
+        let mut file = tempfile::NamedTempFile::new_in(p.parent().unwrap())?;
+        file.write_all(serde_json::to_string_pretty(self)?.as_bytes())?;
+        file.as_file().sync_all()?;
+        file.persist(&p).map_err(|e| e.error)?;
         Ok(())
     }
 

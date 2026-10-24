@@ -25,6 +25,8 @@ serde_json = "1.0.154"
 sha2 = "0.11.1"
 tokio = { version = "1.54.0", features = ["full"] }
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
+totp-rs = { version = "6", features = ["qr"] }
+tempfile = "3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 ureq = "2"
@@ -40,4 +42,5 @@ name = "veyndesk-host"
 path = "src/main.rs"
 
 [dev-dependencies]
+veyndesk-server = { path = "../server" }
 axum = "0.8.9"

@@ -1,6 +1,7 @@
 # Rust build output
 /target/
 /desktop/src-tauri/target/
+/desktop/src-tauri/gen/
 
 # Generated viewer copied from web/index.html by build.rs
 /desktop/ui/viewer.html

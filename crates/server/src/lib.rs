@@ -188,9 +188,9 @@ fn handle_host_msg(app: &App, host_id: &str, tx: &mpsc::UnboundedSender<Message>
         HostToServer::Ping => {
             let _ = tx.send(json_msg(&ServerToHost::Pong));
         }
-        HostToServer::Challenge { sid, salt, nonce } => {
+        HostToServer::Challenge { sid, salt, nonce, two_factor } => {
             if let Some(v) = app.viewer_tx(sid, host_id) {
-                let _ = v.send(json_msg(&ServerToViewer::Challenge { salt, nonce }));
+                let _ = v.send(json_msg(&ServerToViewer::Challenge { salt, nonce, two_factor }));
             }
         }
         HostToServer::Accept { sid, width, height, name, os } => {
@@ -285,8 +285,8 @@ async fn handle_viewer(socket: WebSocket, app: Arc<App>, ip: String) {
             if let Ok(input) = serde_json::from_str::<ViewerInput>(&t) {
                 let _ = host_tx.send(json_msg(&ServerToHost::FromViewer { sid, msg: input }));
             }
-        } else if let Ok(ViewerControl::Auth { proof }) = serde_json::from_str(&t) {
-            let _ = host_tx.send(json_msg(&ServerToHost::Auth { sid, proof }));
+        } else if let Ok(ViewerControl::Auth { proof, second_factor_proof }) = serde_json::from_str(&t) {
+            let _ = host_tx.send(json_msg(&ServerToHost::Auth { sid, proof, second_factor_proof }));
         }
     }
 

@@ -23,6 +23,8 @@ jobs:
           workspaces: |
             . -> target
             desktop/src-tauri -> target
+      - name: Test viewer authentication
+        run: node --test web/tests/auth.test.cjs
       - name: Test
         run: cargo test --workspace
       - name: Build server and console host
@@ -94,6 +96,8 @@ jobs:
           workspaces: |
             . -> target
             desktop/src-tauri -> target
+      - name: Test viewer authentication
+        run: node --test web/tests/auth.test.cjs
       - name: Test
         run: cargo test --workspace
       - name: Test screen blanking helper
@@ -123,6 +127,8 @@ jobs:
           workspaces: |
             . -> target
             desktop/src-tauri -> target
+      - name: Test viewer authentication
+        run: node --test web/tests/auth.test.cjs
       - name: Test
         run: cargo test --workspace
       - name: Build Veyndesk .dmg (Apple Silicon + Intel)

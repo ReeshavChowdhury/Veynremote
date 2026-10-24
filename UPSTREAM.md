@@ -12,7 +12,9 @@ open-source remote desktop application by the Veyndesk contributors.
 This version adds an opt-in Ubuntu/X11 physical-display blanking feature while
 preserving full-color remote capture, plus a separate restoration watchdog,
 host configuration and desktop settings, dependency declarations, diagnostics,
-tests, and documentation. The original application's runtime name and
+tests, and documentation. It additionally adds authenticator-based two-factor
+authentication, one-time recovery codes, and Linux locking after the final
+viewer disconnects. The original application's runtime name and
 configuration paths remain Veyndesk for compatibility.
 
 Upstream commit history and existing source notices are preserved. This project

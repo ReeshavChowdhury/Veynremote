@@ -126,6 +126,27 @@
   <label class="check"><input type="checkbox" id="askAccept"> Ask me to accept incoming connections</label>
   <div id="blankScreenSetting"><label class="check"><input type="checkbox" id="blankScreen"> Blank this computer’s displays during remote sessions (experimental)</label>
   <div class="muted">Ubuntu on Xorg only. Test with your monitor before relying on this for privacy. Displays restore after the last viewer disconnects.</div></div>
+  <div id="autoLockSetting"><label class="check"><input type="checkbox" id="autoLock"> Lock this desktop after the last viewer disconnects</label></div>
+  <label>Two-factor authentication</label>
+  <div class="muted" id="factorStatus"></div>
+  <button class="ghost" id="factorBegin" type="button">Set up authenticator</button>
+  <div id="factorSetup" hidden>
+    <p>Scan this QR code with Google Authenticator, then enter a code from your phone.</p>
+    <img id="factorQr" alt="Authenticator setup QR code" width="220" height="220">
+    <div class="muted">Manual setup key: <code id="factorSecret" style="user-select:all;overflow-wrap:anywhere"></code></div>
+    <input id="factorConfirmCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit authenticator code" maxlength="6">
+    <p class="muted">Enabling requires an updated viewer and disconnects current remote sessions. Wait for the next phone code before your first connection.</p>
+    <button class="ghost" id="factorConfirm" type="button">Verify and enable</button>
+  </div>
+  <div id="factorRecovery" hidden>
+    <p>Save these recovery codes offline. Each works once; they are shown only now.</p>
+    <textarea id="factorRecoveryCodes" readonly rows="10" style="width:100%;user-select:text"></textarea>
+    <button class="ghost" id="factorSaveCodes" type="button">Save recovery codes</button>
+  </div>
+  <div id="factorDisable" hidden>
+    <input id="factorDisableCode" type="text" autocomplete="one-time-code" placeholder="Fresh authenticator or recovery code" maxlength="80">
+    <button class="ghost" id="factorDisableButton" type="button">Disable two-factor authentication</button>
+  </div>
   <label for="perm">Unattended access password</label>
   <div class="row"><input id="perm" type="password" placeholder="At least 8 characters" class="grow">
     <button class="ghost" id="setPerm">Set</button><button class="ghost" id="clearPerm">Remove</button></div>
@@ -222,6 +243,13 @@ async function load() {
   $("askAccept").checked = i.ask_to_accept;
   $("blankScreen").checked = i.blank_screen_on_connect;
   $("blankScreenSetting").hidden = !i.screen_blanking_supported;
+  $("autoLockSetting").hidden = !i.screen_blanking_supported;
+  $("autoLock").checked = i.lock_after_disconnect;
+  $("factorStatus").textContent = i.two_factor_enabled
+    ? `Enabled for all new connections. ${i.recovery_codes_remaining} recovery codes remain.`
+    : "Disabled. Add an authenticator code to your remote-access password.";
+  $("factorBegin").hidden = i.two_factor_enabled;
+  $("factorDisable").hidden = !i.two_factor_enabled;
   $("permState").textContent = i.permanent ? "Unattended password is set (no prompt for it)." : "No unattended password.";
   $("ver").textContent = "Version " + i.version;
   $("myIp").textContent = i.lan_ip;
@@ -345,6 +373,56 @@ $("runServer").onchange = async (e) => {
   load();
 };
 $("askAccept").onchange = (e) => invoke("set_options", { askToAccept: e.target.checked });
+$("autoLock").onchange = async (e) => {
+  $("setErr").textContent = "";
+  try { await invoke("set_auto_lock", { enabled: e.target.checked }); }
+  catch (err) { $("setErr").textContent = String(err); }
+  await load();
+};
+$("factorBegin").onclick = async () => {
+  $("setErr").textContent = "";
+  try {
+    const setup = await invoke("begin_two_factor");
+    $("factorQr").src = "data:image/png;base64," + setup.qr_base64;
+    $("factorSecret").textContent = setup.secret;
+    $("factorSetup").hidden = false;
+    $("factorConfirmCode").focus();
+  } catch (err) { $("setErr").textContent = String(err); }
+};
+$("factorConfirm").onclick = async () => {
+  $("setErr").textContent = "";
+  try {
+    const codes = await invoke("confirm_two_factor", { code: $("factorConfirmCode").value });
+    $("factorSetup").hidden = true;
+    $("factorQr").removeAttribute("src"); $("factorSecret").textContent = "";
+    $("factorConfirmCode").value = "";
+    $("factorRecoveryCodes").value = codes.join("\n");
+    $("factorRecovery").hidden = false;
+    await load();
+  } catch (err) { $("setErr").textContent = String(err); }
+};
+$("factorDisableButton").onclick = async () => {
+  $("setErr").textContent = "";
+  try {
+    await invoke("disable_two_factor", { code: $("factorDisableCode").value });
+    $("factorDisableCode").value = "";
+    $("factorRecoveryCodes").value = ""; $("factorRecovery").hidden = true;
+    await load();
+  } catch (err) { $("setErr").textContent = String(err); }
+};
+$("factorSaveCodes").onclick = () => {
+  const blob = new Blob(["Veynremote recovery codes — keep private; each works once.\n\n" + $("factorRecoveryCodes").value + "\n"], { type: "text/plain" });
+  const url = URL.createObjectURL(blob); const a = document.createElement("a");
+  a.href = url; a.download = "veynremote-recovery-codes.txt"; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+$("settings").addEventListener("close", () => {
+  invoke("cancel_two_factor").catch(() => {});
+  $("factorSetup").hidden = true; $("factorRecovery").hidden = true;
+  $("factorQr").removeAttribute("src"); $("factorSecret").textContent = "";
+  $("factorConfirmCode").value = ""; $("factorDisableCode").value = "";
+  $("factorRecoveryCodes").value = "";
+});
 $("blankScreen").onchange = async (e) => {
   $("setErr").textContent = "";
   try { await invoke("set_screen_blanking", { enabled: e.target.checked }); }

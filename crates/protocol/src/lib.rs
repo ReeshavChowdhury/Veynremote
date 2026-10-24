@@ -35,7 +35,7 @@ pub enum HostToServer {
         os: String,
         version: String,
     },
-    Challenge { sid: u32, salt: String, nonce: String },
+    Challenge { sid: u32, salt: String, nonce: String, #[serde(default)] two_factor: bool },
     Accept { sid: u32, width: u32, height: u32, name: String, os: String },
     Reject { sid: u32, reason: String },
     ToViewer { sid: u32, msg: HostEvent },
@@ -50,7 +50,7 @@ pub enum ServerToHost {
     Registered { id: String },
     Error { message: String },
     Incoming { sid: u32, ip: String },
-    Auth { sid: u32, proof: String },
+    Auth { sid: u32, proof: String, #[serde(default)] second_factor_proof: Option<String> },
     FromViewer { sid: u32, msg: ViewerInput },
     ViewerLeft { sid: u32 },
     Pong,
@@ -61,7 +61,7 @@ pub enum ServerToHost {
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum ViewerControl {
     Connect { id: String },
-    Auth { proof: String },
+    Auth { proof: String, #[serde(default)] second_factor_proof: Option<String> },
 }
 
 /// Input / session messages a viewer sends once connected. Relayed to the host as-is.
@@ -93,7 +93,7 @@ pub enum ViewerInput {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum ServerToViewer {
-    Challenge { salt: String, nonce: String },
+    Challenge { salt: String, nonce: String, #[serde(default)] two_factor: bool },
     Accepted { width: u32, height: u32, name: String, os: String },
     Rejected { reason: String },
     Error { message: String },
@@ -215,6 +215,12 @@ pub fn auth_proof(secret: &str, nonce: &str) -> String {
     sha256_hex(&format!("{secret}:{nonce}"))
 }
 
+/// Bind a second factor to both the password-derived secret and this challenge.
+/// Recovery hashes can be stored without retaining the recovery codes.
+pub fn second_factor_proof(secret: &str, nonce: &str, code_hash: &str) -> String {
+    sha256_hex(&format!("{secret}:{nonce}:second_factor:{code_hash}"))
+}
+
 /// Constant-time string compare.
 pub fn ct_eq(a: &str, b: &str) -> bool {
     let (a, b) = (a.as_bytes(), b.as_bytes());
@@ -242,6 +248,15 @@ pub fn random_password(len: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_password_only_messages_still_decode() {
+        let auth: ViewerControl = serde_json::from_str(r#"{"t":"auth","proof":"test"}"#).unwrap();
+        assert!(matches!(auth, ViewerControl::Auth { second_factor_proof: None, .. }));
+        let challenge: ServerToViewer = serde_json::from_str(r#"{"t":"challenge","salt":"s","nonce":"n"}"#).unwrap();
+        assert!(matches!(challenge, ServerToViewer::Challenge { two_factor: false, .. }));
+        assert_ne!(second_factor_proof("s", "a", "c"), second_factor_proof("s", "b", "c"));
+    }
 
     #[test]
     fn frame_roundtrip() {

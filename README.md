@@ -5,8 +5,9 @@ Windows in full color while Ubuntu’s physical monitor shows a black screen.
 
 Veynremote is a derivative of **[Veyndesk](https://github.com/Veyndesk/veyndesk)**.
 The original remote desktop application, Rust host, WebRTC connectivity, server,
-and viewer were created by the Veyndesk contributors. This repository adds an
-opt-in Linux/X11 screen blanking feature, its settings UI, watchdog, and tests.
+and viewer were created by the Veyndesk contributors. This repository adds
+Linux/X11 screen blanking, authenticator-based two-factor authentication,
+Linux auto-lock after disconnect, settings, and tests.
 See [upstream attribution](UPSTREAM.md). The original [AGPL-3.0 license](LICENSE)
 is retained.
 
@@ -21,13 +22,28 @@ is retained.
   for five seconds.
 - **Local control.** Enable or disable the feature in the Ubuntu host’s Settings.
   It is off by default in a fresh installation.
-- **Existing viewer compatibility.** The screen blanking feature needs an updated
-  Ubuntu host; it does not change the viewer protocol.
+- **Existing viewer compatibility for blanking.** Screen blanking alone works with
+  existing viewers. Authenticator support requires an updated viewer/server.
 
 The Windows-to-Ubuntu setup has been tested by this repository’s owner, who
 confirmed that the physical screen blanking worked. Automated live X11 checks
 also verified gamma restoration and full-color desktop capture. Other monitor
 and graphics-driver combinations still need testing.
+
+## Authenticator and auto-lock
+
+**Google Authenticator:** on the host, open Settings → Two-factor authentication,
+scan the setup QR code, verify a phone code, and save the recovery codes. New
+connections then require both the remote password and an unused authenticator
+or recovery code, including unattended access. Use an updated viewer and server;
+older viewers cannot connect when two-factor authentication is enabled.
+
+**Auto-lock:** on Ubuntu, enable **Lock this desktop after the last viewer
+disconnects** in Settings. It requests the desktop lock after the final
+authenticated viewer leaves and works independently of screen blanking.
+
+Both options default to off in a fresh installation. Read the
+[setup and recovery instructions](docs/security-settings.md) before enabling them.
 
 ## Use from Windows to Ubuntu
 
@@ -96,6 +112,7 @@ configuration and the built-in server port.
 ```bash
 cargo test --workspace --locked
 python3 -m unittest discover -s crates/host/tests -v
+node --test web/tests/auth.test.cjs  # requires Node.js
 ```
 
 The following optional checks **temporarily blank the current X11 displays**.

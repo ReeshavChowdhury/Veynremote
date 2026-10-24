@@ -3,6 +3,8 @@
 pub mod config;
 pub mod input;
 mod privacy;
+pub mod security;
+mod locking;
 pub mod video;
 pub mod p2p;
 
@@ -81,8 +83,8 @@ impl AuthConfig {
         Self { salt, secrets, ask_on_one_time: false }
     }
     /// `Some(is_permanent)` if the proof matches any accepted password.
-    fn verify(&self, nonce: &str, proof: &str) -> Option<bool> {
-        self.secrets.iter().find(|(s, _)| ct_eq(&auth_proof(s, nonce), proof)).map(|(_, p)| *p)
+    fn verify(&self, nonce: &str, proof: &str) -> Option<(bool, String)> {
+        self.secrets.iter().find(|(s, _)| ct_eq(&auth_proof(s, nonce), proof)).map(|(secret, permanent)| (*permanent, secret.clone()))
     }
 }
 
@@ -177,14 +179,17 @@ pub async fn run(
 fn end_all_sessions(ctx: &mut Ctx) {
     ctx.pending.clear();
     ctx.awaiting.clear();
-    let sids: Vec<u32> = ctx.active.lock().unwrap().drain().collect();
+    let sids: Vec<u32> = ctx.active.lock().unwrap().iter().copied().collect();
     for sid in sids {
         end_session(ctx, sid);
     }
 }
 
 fn end_session(ctx: &mut Ctx, sid: u32) {
-    ctx.active.lock().unwrap().remove(&sid);
+    let last = locking::remove_last(&mut ctx.active.lock().unwrap(), sid);
+    if last && ctx.cfg.lock().unwrap().lock_after_disconnect {
+        locking::spawn(ctx.ui.clone());
+    }
     ctx.ips.remove(&sid);
     let _ = ctx.video.send(VideoCmd::Remove(sid));
     let _ = ctx.input.send(InputCmd::SessionEnded(sid));
@@ -336,15 +341,38 @@ fn handle(ctx: &mut Ctx, m: ServerToHost) -> Vec<Message> {
             let nonce = random_token(16);
             ctx.pending.insert(sid, (nonce.clone(), ip.clone()));
             let _ = ctx.ui.send(UiEvent::Incoming { sid, ip });
-            vec![text(&HostToServer::Challenge { sid, salt: auth.salt, nonce })]
+            let two_factor = ctx.cfg.lock().unwrap().two_factor.is_some();
+            vec![text(&HostToServer::Challenge { sid, salt: auth.salt, nonce, two_factor })]
         }
-        ServerToHost::Auth { sid, proof } => {
+        ServerToHost::Auth { sid, proof, second_factor_proof } => {
             let Some((nonce, ip)) = ctx.pending.remove(&sid) else { return vec![] };
             let (result, ask) = {
                 let a = ctx.auth.lock().unwrap();
                 (a.verify(&nonce, &proof), a.ask_on_one_time)
             };
-            if let Some(permanent) = result {
+            ctx.failures.retain(|t| t.elapsed() < Duration::from_secs(300));
+            let mut verified = false;
+            if ctx.failures.len() < 8 {
+                if let Some((_, password_secret)) = &result {
+                    let mut cfg = ctx.cfg.lock().unwrap();
+                    let mut next = cfg.clone();
+                    verified = match next.two_factor.as_mut() {
+                        None => true,
+                        Some(factor) => second_factor_proof.as_deref().is_some_and(|proof|
+                            security::consume_proof(factor, password_secret, &nonce, proof, security::now())),
+                    };
+                    // Persist replay protection/recovery consumption before accepting.
+                    if verified && next.two_factor.is_some() {
+                        if let Err(error) = next.save() {
+                            warn!("could not persist second-factor consumption: {error}");
+                            verified = false;
+                        } else {
+                            *cfg = next;
+                        }
+                    }
+                }
+            }
+            if let Some((permanent, _)) = result.filter(|_| verified) {
                 if !permanent && ask {
                     ctx.awaiting.insert(sid, (ip.clone(), Instant::now()));
                     let _ = ctx.ui.send(UiEvent::ApprovalRequest { sid, ip });
@@ -354,7 +382,7 @@ fn handle(ctx: &mut Ctx, m: ServerToHost) -> Vec<Message> {
             } else {
                 ctx.failures.push(Instant::now());
                 let _ = ctx.ui.send(UiEvent::AuthFailed { sid, ip });
-                vec![text(&HostToServer::Reject { sid, reason: "Wrong password".into() })]
+                vec![text(&HostToServer::Reject { sid, reason: "Wrong password or authentication code. Use an updated Veynremote viewer if two-factor authentication is enabled.".into() })]
             }
         }
         ServerToHost::FromViewer { sid, msg } => {

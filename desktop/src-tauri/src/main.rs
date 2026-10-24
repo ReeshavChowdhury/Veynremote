@@ -25,6 +25,8 @@ struct AppState {
     cfg: Arc<Mutex<HostConfig>>,
     auth: Arc<Mutex<AuthConfig>>,
     otp: Mutex<String>,
+    pending_factor: Mutex<Option<(veyndesk_host::security::TwoFactorConfig, std::time::Instant)>>,
+    factor_attempts: Mutex<Vec<std::time::Instant>>,
     id: Arc<Mutex<Option<String>>>,
     status: Arc<Mutex<String>>,
     cmd: UnboundedSender<HostCommand>,
@@ -52,6 +54,9 @@ struct Info {
     ask_to_accept: bool,
     blank_screen_on_connect: bool,
     screen_blanking_supported: bool,
+    lock_after_disconnect: bool,
+    two_factor_enabled: bool,
+    recovery_codes_remaining: usize,
     run_server: bool,
     server_state: ServerState,
     status: String,
@@ -136,6 +141,9 @@ fn get_info(state: State<'_, AppState>) -> Info {
         ask_to_accept: cfg.ask_to_accept,
         blank_screen_on_connect: cfg.blank_screen_on_connect,
         screen_blanking_supported: cfg!(target_os = "linux"),
+        lock_after_disconnect: cfg.lock_after_disconnect,
+        two_factor_enabled: cfg.two_factor.is_some(),
+        recovery_codes_remaining: cfg.two_factor.as_ref().map_or(0, |factor| factor.recovery_hashes.len()),
         run_server: cfg.run_server,
         server_state: state.server_state.lock().unwrap().clone(),
         status: state.status.lock().unwrap().clone(),
@@ -247,6 +255,93 @@ fn set_options(state: State<'_, AppState>, ask_to_accept: bool) -> Result<(), St
         cfg.save().map_err(|e| e.to_string())?;
     }
     rebuild_auth(&state);
+    Ok(())
+}
+
+fn main_window(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() == "main" { Ok(()) } else { Err("Security settings are available only in the main window.".into()) }
+}
+
+fn factor_attempt(state: &AppState) -> Result<(), String> {
+    let mut attempts = state.factor_attempts.lock().unwrap();
+    attempts.retain(|time| time.elapsed().as_secs() < 300);
+    if attempts.len() >= 8 { return Err("Too many attempts. Wait five minutes.".into()); }
+    attempts.push(std::time::Instant::now());
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct FactorSetup { secret: String, qr_base64: String }
+
+#[tauri::command]
+fn begin_two_factor(window: tauri::WebviewWindow, state: State<'_, AppState>) -> Result<FactorSetup, String> {
+    main_window(&window)?;
+    let cfg = state.cfg.lock().unwrap();
+    if cfg.two_factor.is_some() { return Err("Two-factor authentication is already enabled.".into()); }
+    let factor = veyndesk_host::security::new_config();
+    let generator = veyndesk_host::security::totp(&factor.secret, &cfg.name).map_err(|e| e.to_string())?;
+    let qr_base64 = generator.to_qr_base64().map_err(|_| "Could not generate setup QR code".to_string())?;
+    let result = FactorSetup { secret: factor.secret.clone(), qr_base64 };
+    *state.pending_factor.lock().unwrap() = Some((factor, std::time::Instant::now()));
+    Ok(result)
+}
+
+#[tauri::command]
+fn cancel_two_factor(window: tauri::WebviewWindow, state: State<'_, AppState>) -> Result<(), String> {
+    main_window(&window)?;
+    *state.pending_factor.lock().unwrap() = None;
+    Ok(())
+}
+
+#[tauri::command]
+fn confirm_two_factor(window: tauri::WebviewWindow, state: State<'_, AppState>, code: String) -> Result<Vec<String>, String> {
+    main_window(&window)?;
+    factor_attempt(&state)?;
+    let mut cfg = state.cfg.lock().unwrap();
+    if cfg.two_factor.is_some() { return Err("Two-factor authentication is already enabled.".into()); }
+    let mut pending = state.pending_factor.lock().unwrap();
+    let Some((factor, since)) = pending.as_ref() else { return Err("Start setup first.".into()); };
+    if since.elapsed().as_secs() > 600 { *pending = None; return Err("Setup expired. Start again.".into()); }
+    let mut factor = factor.clone();
+    if !veyndesk_host::security::consume_local(&mut factor, &code, veyndesk_host::security::now()) {
+        return Err("Invalid code. Check the code and your phone's clock.".into());
+    }
+    let codes = veyndesk_host::security::recovery_codes(&mut factor);
+    let mut next = cfg.clone();
+    next.two_factor = Some(factor);
+    next.save().map_err(|e| e.to_string())?;
+    *cfg = next;
+    *pending = None;
+    // Invalidate password-only challenges issued before enrollment.
+    let _ = state.cmd.send(HostCommand::Reconnect);
+    Ok(codes)
+}
+
+#[tauri::command]
+fn disable_two_factor(window: tauri::WebviewWindow, state: State<'_, AppState>, code: String) -> Result<(), String> {
+    main_window(&window)?;
+    factor_attempt(&state)?;
+    let mut cfg = state.cfg.lock().unwrap();
+    let mut next = cfg.clone();
+    let factor = next.two_factor.as_mut().ok_or("Two-factor authentication is not enabled.")?;
+    if !veyndesk_host::security::consume_local(factor, &code, veyndesk_host::security::now()) {
+        return Err("Invalid or already used code. Use a fresh authenticator code or a recovery code.".into());
+    }
+    next.two_factor = None;
+    next.save().map_err(|e| e.to_string())?;
+    *cfg = next;
+    Ok(())
+}
+
+#[tauri::command]
+fn set_auto_lock(window: tauri::WebviewWindow, state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
+    main_window(&window)?;
+    if enabled && !cfg!(target_os = "linux") { return Err("Auto-lock currently supports Linux hosts.".into()); }
+    let mut cfg = state.cfg.lock().unwrap();
+    let mut next = cfg.clone();
+    next.lock_after_disconnect = enabled;
+    next.save().map_err(|e| e.to_string())?;
+    *cfg = next;
     Ok(())
 }
 
@@ -398,6 +493,8 @@ fn main() {
         cfg: cfg.clone(),
         auth: auth.clone(),
         otp: Mutex::new(otp),
+        pending_factor: Mutex::new(None),
+        factor_attempts: Mutex::new(vec![]),
         id: id.clone(),
         status: status.clone(),
         cmd: cmd_tx,
@@ -415,6 +512,11 @@ fn main() {
             set_options,
             set_permanent_password,
             set_screen_blanking,
+            begin_two_factor,
+            cancel_two_factor,
+            confirm_two_factor,
+            disable_two_factor,
+            set_auto_lock,
             respond,
             disconnect_all,
             discover_servers,

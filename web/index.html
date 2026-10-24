@@ -75,6 +75,8 @@
       <input id="pid" type="text" inputmode="numeric" placeholder="123 456 789" required>
       <label for="pw">Password</label>
       <input id="pw" type="password" placeholder="Shown on the remote computer" required>
+      <label for="secondFactor">Authenticator or recovery code (if enabled)</label>
+      <input id="secondFactor" type="text" autocomplete="one-time-code" placeholder="6-digit code or a recovery code" maxlength="80">
       <button class="btn full" id="go" type="submit">Connect</button>
       <div class="msg" id="msg"></div>
     </form>
@@ -308,12 +310,22 @@ function onControl(m, password) {
   switch (m.t) {
     case "challenge": {
       const secret = sha256hex(`${m.salt}:${password}`);
-      send({ t: "auth", proof: sha256hex(`${secret}:${m.nonce}`) });
+      let factorProof = null;
+      if (m.two_factor) {
+        const code = $("secondFactor").value.replace(/[\s-]/g, "").toLowerCase();
+        if (!/^(?:[0-9]{6}|[0-9a-f]{32})$/.test(code)) {
+          $("msg").textContent = "This computer requires an authenticator code. Enter a fresh code or recovery code, then connect again.";
+          ws.close(); $("secondFactor").focus(); break;
+        }
+        factorProof = sha256hex(`${secret}:${m.nonce}:second_factor:${sha256hex(code)}`);
+      }
+      send({ t: "auth", proof: sha256hex(`${secret}:${m.nonce}`), second_factor_proof: factorProof });
       $("go").textContent = "Waiting for the remote side…";
       break;
     }
     case "accepted": {
       S.connected = true; S.name = m.name;
+      $("secondFactor").value = "";
       const recent = store.get("veyndesk.recent", []).filter(r => r.id !== S.id);
       recent.unshift({ id: S.id, name: m.name }); store.set("veyndesk.recent", recent.slice(0, 6));
       $("vtitle").textContent = `${m.name} · ${fmtId(S.id)}`;
