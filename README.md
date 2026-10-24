@@ -1,6 +1,8 @@
-# Veynremote
+# Veynremote — Remote desktop with Ubuntu screen blanking and 2FA
 
-Remote desktop with **Ubuntu screen blanking**: control your Ubuntu computer from
+An open-source remote desktop project focused on private Windows-to-Ubuntu access.
+
+With **Ubuntu screen blanking**, control your Ubuntu computer from
 Windows in full color while Ubuntu’s physical monitor shows a black screen.
 Add **Google Authenticator two-factor authentication** and **auto-lock after
 disconnect** from the host’s Settings.
@@ -176,6 +178,28 @@ The app inherits Veyndesk’s use of ntfy.sh for discovery, Google/Cloudflare ST
 for direct connectivity, and optional Cloudflare tunnels for relay access.
 See [upstream documentation](https://veyndesk.github.io/) for the original
 architecture and service details.
+
+## Frequently asked questions
+
+### Can I control Ubuntu from Windows while its physical monitor stays black?
+
+Yes. Enable screen blanking on the Ubuntu host and connect from Windows. The
+Windows viewer receives the desktop in color while supported Ubuntu physical
+displays show black. This requires Ubuntu on Xorg/X11 and working RandR gamma
+support; see the [screen blanking guide](docs/screen-blanking.md).
+
+### Can I use Google Authenticator for remote desktop access?
+
+Yes. Enroll a TOTP authenticator in the host’s Settings, verify a phone code, and
+save the recovery codes. Each new remote connection then requires the password
+and an unused authenticator or recovery code. Updated viewers and servers are
+required; see [two-factor authentication setup](docs/security-settings.md).
+
+### Does Ubuntu lock when I disconnect?
+
+With auto-lock enabled, the host requests a Linux desktop lock after the last
+authenticated viewer disconnects. Screen blanking and auto-lock are independent
+settings. The Linux desktop must support screen locking.
 
 ## Project layout
 
