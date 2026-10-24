@@ -2,6 +2,8 @@
 
 Remote desktop with **Ubuntu screen blanking**: control your Ubuntu computer from
 Windows in full color while Ubuntu’s physical monitor shows a black screen.
+Add **Google Authenticator two-factor authentication** and **auto-lock after
+disconnect** from the host’s Settings.
 
 Veynremote is a derivative of **[Veyndesk](https://github.com/Veyndesk/veyndesk)**.
 The original remote desktop application, Rust host, WebRTC connectivity, server,
@@ -45,6 +47,35 @@ authenticated viewer leaves and works independently of screen blanking.
 Both options default to off in a fresh installation. Read the
 [setup and recovery instructions](docs/security-settings.md) before enabling them.
 
+## Updating and Windows compatibility
+
+Install the updated host on Ubuntu to get the new Settings controls. Building
+new source does not update an already running executable: replace the executable
+and restart the app after disconnecting active viewers. Existing IDs and passwords
+are retained in the application’s configuration directory.
+
+| Feature | Updated Ubuntu host | Updated Windows viewer |
+| --- | --- | --- |
+| Ubuntu physical-screen blanking | Required | Not required |
+| Auto-lock after the last viewer disconnects | Required | Not required |
+| Authenticator or recovery-code login | Required | Required, or use the updated browser viewer |
+
+For browser access from Windows on the same trusted network, open
+`http://<ubuntu-ip>:21118/` while the Ubuntu app’s built-in server is running.
+Enter the Ubuntu app’s ID, password, and authenticator/recovery code. Replace
+`<ubuntu-ip>` with the Ubuntu computer’s LAN address. This direct HTTP/LAN path
+is not encrypted; use an appropriate secure connection for untrusted networks.
+
+Screen blanking and auto-lock do not require enrolling an authenticator.
+Two-factor authentication becomes active only after scanning the QR code and
+successfully verifying a phone code. Save the ten single-use recovery codes,
+and wait for the next phone code before the first remote login: the setup code
+has already been consumed. A separately deployed server must also be updated.
+
+Build artifacts, when available, are attached to successful
+[GitHub Actions build runs](https://github.com/ReeshavChowdhury/Veynremote/actions/workflows/build.yml).
+The upstream Veyndesk downloads do not include these Veynremote changes.
+
 ## Use from Windows to Ubuntu
 
 1. On Ubuntu, use an **X11 session**. If necessary, select **Ubuntu on Xorg** at
@@ -53,9 +84,12 @@ Both options default to off in a fresh installation. Read the
 3. On Ubuntu, open **Settings** and enable **Blank this computer’s displays during
    remote sessions (experimental)**.
 4. Open Veyndesk on Windows and connect using the Ubuntu app’s ID and password.
+   If two-factor authentication is enabled, use an updated viewer and enter a
+   fresh authenticator code or unused recovery code as well.
 5. Accept the connection on Ubuntu, unless you configured unattended access.
 6. Windows should show the normal Ubuntu desktop while the Ubuntu monitor is
-   black. Disconnect to restore the physical display.
+   black. Disconnect to restore the physical display. If auto-lock is enabled,
+   Ubuntu requests a desktop lock after the final viewer leaves.
 
 For unattended access, set a permanent password in the Ubuntu app’s Settings.
 Keep the host app running while connecting.
@@ -147,12 +181,13 @@ architecture and service details.
 
 | Path | Purpose |
 | --- | --- |
-| `crates/host` | Desktop capture, input, connections, and screen blanking |
+| `crates/host` | Capture, input, connections, blanking, two-factor verification, and locking |
 | `crates/protocol` | Shared messages and authentication |
 | `crates/server` | Built-in and standalone server |
 | `desktop` | Tauri desktop app and settings |
 | `web` | Browser viewer and administration pages |
 | `docs/screen-blanking.md` | Screen blanking setup and limitations |
+| `docs/security-settings.md` | Authenticator setup, recovery codes, and auto-lock |
 
 ## Attribution and license
 
