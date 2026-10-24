@@ -50,6 +50,8 @@ struct Info {
     name: String,
     permanent: bool,
     ask_to_accept: bool,
+    blank_screen_on_connect: bool,
+    screen_blanking_supported: bool,
     run_server: bool,
     server_state: ServerState,
     status: String,
@@ -132,6 +134,8 @@ fn get_info(state: State<'_, AppState>) -> Info {
         name: cfg.name.clone(),
         permanent: cfg.permanent.is_some(),
         ask_to_accept: cfg.ask_to_accept,
+        blank_screen_on_connect: cfg.blank_screen_on_connect,
+        screen_blanking_supported: cfg!(target_os = "linux"),
         run_server: cfg.run_server,
         server_state: state.server_state.lock().unwrap().clone(),
         status: state.status.lock().unwrap().clone(),
@@ -243,6 +247,21 @@ fn set_options(state: State<'_, AppState>, ask_to_accept: bool) -> Result<(), St
         cfg.save().map_err(|e| e.to_string())?;
     }
     rebuild_auth(&state);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_screen_blanking(state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
+    if enabled && (!cfg!(target_os = "linux") || std::env::var("XDG_SESSION_TYPE").unwrap_or_default() != "x11") {
+        return Err("Screen blanking requires Ubuntu on Xorg (X11).".into());
+    }
+    let mut cfg = state.cfg.lock().unwrap();
+    let previous = cfg.blank_screen_on_connect;
+    cfg.blank_screen_on_connect = enabled;
+    if let Err(error) = cfg.save() {
+        cfg.blank_screen_on_connect = previous;
+        return Err(error.to_string());
+    }
     Ok(())
 }
 
@@ -395,6 +414,7 @@ fn main() {
             enable_lan_server,
             set_options,
             set_permanent_password,
+            set_screen_blanking,
             respond,
             disconnect_all,
             discover_servers,

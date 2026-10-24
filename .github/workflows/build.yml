@@ -96,6 +96,8 @@ jobs:
             desktop/src-tauri -> target
       - name: Test
         run: cargo test --workspace
+      - name: Test screen blanking helper
+        run: python3 -m unittest discover -s crates/host/tests -v
       - name: Build Veyndesk .deb + AppImage
         working-directory: desktop
         run: npx --yes @tauri-apps/cli@2 build --bundles deb,appimage

@@ -124,6 +124,8 @@
   <div class="row" style="margin-top:10px"><button class="ghost" id="saveServer">Save &amp; reconnect</button></div>
   <label class="check"><input type="checkbox" id="runServer"> Run a Veyndesk server on this PC (port 21118)</label>
   <label class="check"><input type="checkbox" id="askAccept"> Ask me to accept incoming connections</label>
+  <div id="blankScreenSetting"><label class="check"><input type="checkbox" id="blankScreen"> Blank this computer’s displays during remote sessions (experimental)</label>
+  <div class="muted">Ubuntu on Xorg only. Test with your monitor before relying on this for privacy. Displays restore after the last viewer disconnects.</div></div>
   <label for="perm">Unattended access password</label>
   <div class="row"><input id="perm" type="password" placeholder="At least 8 characters" class="grow">
     <button class="ghost" id="setPerm">Set</button><button class="ghost" id="clearPerm">Remove</button></div>
@@ -218,6 +220,8 @@ async function load() {
   if (document.activeElement !== $("name")) $("name").value = i.name;
   $("runServer").checked = i.run_server;
   $("askAccept").checked = i.ask_to_accept;
+  $("blankScreen").checked = i.blank_screen_on_connect;
+  $("blankScreenSetting").hidden = !i.screen_blanking_supported;
   $("permState").textContent = i.permanent ? "Unattended password is set (no prompt for it)." : "No unattended password.";
   $("ver").textContent = "Version " + i.version;
   $("myIp").textContent = i.lan_ip;
@@ -341,6 +345,12 @@ $("runServer").onchange = async (e) => {
   load();
 };
 $("askAccept").onchange = (e) => invoke("set_options", { askToAccept: e.target.checked });
+$("blankScreen").onchange = async (e) => {
+  $("setErr").textContent = "";
+  try { await invoke("set_screen_blanking", { enabled: e.target.checked }); }
+  catch (err) { $("setErr").textContent = String(err); }
+  await load();
+};
 $("setPerm").onclick = async () => {
   $("setErr").textContent = "";
   try { await invoke("set_permanent_password", { password: $("perm").value }); $("perm").value = ""; load(); }

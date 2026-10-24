@@ -49,6 +49,7 @@
       "minimumSystemVersion": "10.15"
     },
     "linux": {
+      "deb": { "depends": ["python3", "libx11-6", "libxrandr2"] },
       "appimage": {
         "bundleMediaFramework": false
       }

@@ -18,6 +18,9 @@ pub struct HostConfig {
     /// Desktop app: ask before accepting one-time-password sessions.
     #[serde(default = "yes")]
     pub ask_to_accept: bool,
+    /// Experimental X11 gamma blanking while authenticated viewers are connected.
+    #[serde(default)]
+    pub blank_screen_on_connect: bool,
     /// Desktop app: also run a Veyndesk server on this PC (LAN mode).
     #[serde(default)]
     pub run_server: bool,
@@ -88,6 +91,7 @@ impl HostConfig {
             name: hostname(),
             permanent: None,
             ask_to_accept: true,
+            blank_screen_on_connect: false,
             run_server: false,
             internet: false,
             team_code: None,

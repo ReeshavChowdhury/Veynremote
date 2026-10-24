@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod input;
+mod privacy;
 pub mod video;
 pub mod p2p;
 
@@ -129,6 +130,7 @@ pub async fn run(
     let active = Arc::new(Mutex::new(HashSet::new()));
     let video = video::spawn_video(source, out_tx.clone(), shared.clone());
     let input = input::spawn_input(shared.clone(), out_tx.clone(), active.clone());
+    privacy::spawn(cfg.clone(), active.clone(), ui.clone());
 
     let mut ctx = Ctx {
         cfg,
