@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Veynremote",
+  "version": "0.5.5",
+  "identifier": "app.veyndesk.desktop",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Veynremote",
+        "width": 880,
+        "height": 600,
+        "minWidth": 420,
+        "minHeight": 560,
+        "resizable": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "Veynremote contributors",
+    "shortDescription": "Open-source remote desktop",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    },
+    "category": "Utility",
+    "longDescription": "Veynremote is an open-source remote desktop application. Connect to another computer with an ID and password.",
+    "homepage": "https://github.com/ReeshavChowdhury/Veynremote",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "linux": {
+      "deb": {
+        "depends": ["python3", "libx11-6", "libxrandr2", "libayatana-appindicator3-1"],
+        "conflicts": ["veyndesk"],
+        "replaces": ["veyndesk"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  },
+  "mainBinaryName": "Veyndesk"
+}
