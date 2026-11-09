@@ -17,6 +17,8 @@ is retained.
 
 **[Project website and setup guide](https://reeshavchowdhury.github.io/veynremote/)** · [Reeshav’s project portfolio](https://reeshavchowdhury.github.io/)
 
+**[Download the Windows installer](https://github.com/ReeshavChowdhury/Veynremote/releases/latest/download/Veynremote_0.5.5_x64-setup.exe)** · [All releases](https://github.com/ReeshavChowdhury/Veynremote/releases)
+
 ## What this version adds
 
 - **Black screen on Ubuntu, normal desktop on Windows.** Display gamma ramps
@@ -76,8 +78,9 @@ successfully verifying a phone code. Save the ten single-use recovery codes,
 and wait for the next phone code before the first remote login: the setup code
 has already been consumed. A separately deployed server must also be updated.
 
-Build artifacts, when available, are attached to successful
-[GitHub Actions build runs](https://github.com/ReeshavChowdhury/Veynremote/actions/workflows/build.yml).
+Download the [Windows installer](https://github.com/ReeshavChowdhury/Veynremote/releases/latest/download/Veynremote_0.5.5_x64-setup.exe)
+from the latest Veynremote release. Build artifacts for other platforms are
+available in successful [GitHub Actions runs](https://github.com/ReeshavChowdhury/Veynremote/actions/workflows/build.yml).
 The upstream Veyndesk downloads do not include these Veynremote changes.
 
 ## Use from Windows to Ubuntu
